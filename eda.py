@@ -6,6 +6,9 @@ import argparse
 import sys
 import numpy as np
 import pandas as pd
+from collections import Counter
+import seaborn as sns
+import matplotlib.pyplot as plt
 import pdb
 #Arguments for argparse module:
 parser = argparse.ArgumentParser(description = '''Parse and analyze CATH data .''')
@@ -39,7 +42,7 @@ def read_fasta(sequences):
 
             else:
                 sequence+=line
-                print(sequence)
+
 
 
         #Append the last sequence
@@ -79,6 +82,36 @@ def read_domain_list(domain_list):
     df['H-group'] = fetched_hgroups
 
     return df
+
+def analyze_distributions(df):
+    '''analyze the C.A.T.H distributions
+    '''
+    #uid,sequence,Class,Architecture,Topology,H-group
+    for param in ['Class','Architecture','Topology','H-group']:
+        counted = Counter(df[param])
+        groups = np.array([*counted.keys()])
+        print(param,len(groups), 'groups')
+        vals = np.array([*counted.values()])
+        sns.distplot(vals)
+        plt.title(param)
+        plt.savefig(outdir+param+'_hist.png', format='png', dpi=300)
+        plt.close()
+
+        sort_ind = np.argsort(vals)
+        if len(groups) <10:
+            plt.bar(groups[sort_ind],vals[sort_ind])
+        else:
+            plt.bar(np.arange(len(groups)),vals[sort_ind])
+            plt.yscale('log')
+
+        plt.xlabel('Group')
+        plt.ylabel('Number of entries')
+        plt.title(param)
+        plt.savefig(outdir+param+'_bar.png', format='png', dpi=300)
+        plt.show()
+
+
+
 #####MAIN#####
 args = parser.parse_args()
 sequences = args.sequences[0]
@@ -93,3 +126,5 @@ sequence_df = read_fasta(sequences)
 df = pd.merge(sequence_df,hgroup_df,on='uid', how='left')
 #Save
 df.to_csv('seqdf.csv')
+#Analyze
+analyze_distributions(df)
