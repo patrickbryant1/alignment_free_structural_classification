@@ -91,6 +91,5 @@ hgroup_df = read_domain_list(domain_list)
 sequence_df = read_fasta(sequences)
 #Join on uid
 df = pd.merge(sequence_df,hgroup_df,on='uid', how='left')
-pdb.set_trace()
 #Save
 df.to_csv('seqdf.csv')
