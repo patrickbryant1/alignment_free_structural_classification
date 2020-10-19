@@ -71,6 +71,8 @@ def read_domain_list(domain_list):
     #Loop through file
     with open(domain_list, 'r') as file:
         for line in file:
+            if line[0]=='#':
+                continue
             line = line.split()
             fetched_uids.append(line[0])
             fetched_classes.append(line[1])
@@ -96,6 +98,8 @@ def analyze_distributions(df):
         groups = np.array([*counted.keys()])
         print(param,len(groups), 'groups')
         vals = np.array([*counted.values()])
+        if param == 'H-group':
+            print(len(vals[np.where(vals==1)]), 'out of', len(vals), 'H-groups with only one entry')
         sns.distplot(vals)
         plt.title(param)
         plt.savefig(outdir+param+'_hist.png', format='png', dpi=300)
@@ -133,7 +137,6 @@ hgroup_df = read_domain_list(domain_list)
 sequence_df = read_fasta(sequences)
 #Join on uid
 df = pd.merge(sequence_df,hgroup_df,on='uid', how='left')
-
 #Save
 df.to_csv('seqdf.csv')
 #Analyze
