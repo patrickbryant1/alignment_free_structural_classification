@@ -17,7 +17,7 @@ from tensorflow.keras import regularizers,optimizers
 import tensorflow.keras as keras
 from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, Callback
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, BatchNormalization, Flatten, Subtract
+from tensorflow.keras.layers import Lambda,Dense, Dropout, Activation, LSTM, BatchNormalization, Flatten, Subtract
 from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 #visualization
 from tensorflow.keras.callbacks import TensorBoard
@@ -59,31 +59,47 @@ def read_net_params(params_file):
     return net_params
 
 
-def get_batch(grouped_labels,sequences,batch_size,s="train"):
+def get_batch(grouped_labels,encoded_seqs,batch_size,s="train"):
     """
     Create batch of n pairs
     """
 
-    random_numbers = np.random.choice(len(grouped_labels),size=(batch_size,),replace=False) #without replacement
+    random_numbers = np.random.choice(len(grouped_labels),size=(batch_size*2,),replace=False) #without replacement
 
     #initialize vector for the targets
     targets=[]
-
+    s1 = []
+    s2 = []
     #Get batch data - make half from the same H-group and half from different
-    for i in random_numbers:
-        matches = grouped_labels[i]
-        pdb.set_trace()
+    for i in range(batch_size):
+        matches = grouped_labels[random_numbers[i]]
+        #See if match or not
+        if np.random.randint(2)==0: #If match add from same H-group
+            if matches.shape[0]>1: #See if theere is more than one sequence in the H-group
+                pick = np.random.choice(matches,size=2, replace=False)
+                s1.append(encoded_seqs[pick[0]])
+                s2.append(encoded_seqs[pick[1]])
+            else:
+                s1.append(encoded_seqs[matches[0]])
+                s2.append(encoded_seqs[matches[0]])
 
+            targets.append(1)
+        else: #If not match add from different H-groups
+            pick = np.random.choice(matches,size=1, replace=False)
+            unmatch = np.random.choice(grouped_labels[random_numbers[i+batch_size]],size=1, replace=False)
+            s1.append(encoded_seqs[pick[0]])
+            s2.append(encoded_seqs[unmatch[0]])
 
+            targets.append(0)
 
-    return pairs, targets
+    return [np.array(s1), np.array(s2)], np.array(targets)
 
-def generate(grouped_labels,sequences,batch_size, s="train"):
+def generate(grouped_labels,encoded_seqs,batch_size, s="train"):
     """
     a generator for batches, so model.fit_generator can be used.
     """
     while True:
-        pairs, targets = get_batch(hgroup_labels,sequences,batch_size,s)
+        pairs, targets = get_batch(grouped_labels,encoded_seqs,batch_size,s)
         yield (pairs, targets)
 
 ######################MAIN######################
@@ -125,12 +141,12 @@ print('Formatted in', np.round(t2-t1,2),'seconds')
 
 batch_size = 32 #int(net_params['batch_size'])
 #MODEL
-in_1 = keras.Input(shape = [None,21])
-in_2 = keras.Input(shape = [None,21])
+in_1 = keras.Input(shape = [600,21])
+in_2 = keras.Input(shape = [600,21])
 
 #Initial convolution
-x1 = LSTM(10, return_sequences=True)(in_1)
-x2 = LSTM(10, return_sequences=True)(in_1)
+x1 = LSTM(10, return_sequences=False)(in_1)
+x2 = LSTM(10, return_sequences=False)(in_2)
 
 act1=Dense(10, activation='softmax')(x1)
 act2=Dense(10, activation='softmax')(x2)
@@ -140,7 +156,7 @@ L1_layer = Lambda(lambda tensors:abs(tensors[0] - tensors[1]))
 L1_distance = L1_layer([act1, act2])
 
 
-probabilities = Dense(2, activation='softmax')(L1_distance)
+probabilities = Dense(1, activation='softmax')(L1_distance)
 
 #Checkpoint
 #filepath=out_dir+"weights-{epoch:02d}-.hdf5"
@@ -148,17 +164,18 @@ probabilities = Dense(2, activation='softmax')(L1_distance)
 
 #Model: define inputs and outputs
 model = Model(inputs = [in_1, in_2], outputs = probabilities)
-opt = optimizers.Adam(clipnorm=1., lr = lrate) #remove clipnorm and add loss penalty - clipnorm works better
+opt = optimizers.Adam(clipnorm=1., lr = 0.01) #remove clipnorm and add loss penalty - clipnorm works better
 model.compile(loss='binary_crossentropy',
-              optimizer=opt)
+              optimizer=opt,
+              metrics = ['accuracy'])
 
 #Summary of model
 print(model.summary())
 
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
-model.fit_generator(generate(grouped_labels,sequences,batch_size),
+model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
             steps_per_epoch=int(2*len(sequences)/batch_size),
-            epochs=num_epochs,
+            epochs=1,
             shuffle=True #Dont feed continuously
             )

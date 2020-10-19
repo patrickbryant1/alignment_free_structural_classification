@@ -28,6 +28,15 @@ def one_hot(sequences):
         enc_seq = []
         for aa in seq: #Go through all the amino acids in the sequence
             enc_seq.append(AMINO_ACIDS[aa])
+        #pad/cut
+
+        if len(seq)>600:
+            enc_seq = enc_seq[:600]
+        else:
+            zeros = np.zeros(600,dtype='int32')
+            zeros[:len(seq)]=enc_seq
+            enc_seq=zeros
+
         #Save the sncoded sequence
         encoded_seqs.append(np.eye(21)[enc_seq]) #Onehot
 
