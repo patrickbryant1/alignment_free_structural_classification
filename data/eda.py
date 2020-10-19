@@ -28,6 +28,7 @@ def read_fasta(sequences):
     '''
     fetched_uids = []
     fetched_sequences = []
+    sequence_lengths = []
     with open(sequences, 'r') as file:
         for line in file:
             line = line.rstrip()
@@ -35,6 +36,7 @@ def read_fasta(sequences):
                 #Save seuqence
                 if len(fetched_uids)>0:
                     fetched_sequences.append(sequence)
+                    sequence_lengths.append(len(sequence))
                 #Save uid
                 fetched_uids.append(line.split('|')[2].split('/')[0])
                 #Create a new entry
@@ -47,11 +49,13 @@ def read_fasta(sequences):
 
         #Append the last sequence
         fetched_sequences.append(sequence)
+        sequence_lengths.append(len(sequence))
 
 
     df = pd.DataFrame()
     df['uid'] = fetched_uids
-    df['sequence'] =fetched_sequences
+    df['sequence'] = fetched_sequences
+    df['seqlen'] = sequence_lengths
 
     return df
 
@@ -108,9 +112,14 @@ def analyze_distributions(df):
         plt.ylabel('Number of entries')
         plt.title(param)
         plt.savefig(outdir+param+'_bar.png', format='png', dpi=300)
-        plt.show()
+        plt.close()
 
 
+    #Plot seqlens
+    sns.distplot(df['seqlen'])
+    plt.title('Sequence length')
+    plt.savefig(outdir+'seqlen_hist.png', format='png', dpi=300)
+    plt.close()
 
 #####MAIN#####
 args = parser.parse_args()
@@ -124,6 +133,7 @@ hgroup_df = read_domain_list(domain_list)
 sequence_df = read_fasta(sequences)
 #Join on uid
 df = pd.merge(sequence_df,hgroup_df,on='uid', how='left')
+
 #Save
 df.to_csv('seqdf.csv')
 #Analyze
