@@ -32,3 +32,16 @@ def one_hot(sequences):
         encoded_seqs.append(np.eye(21)[enc_seq]) #Onehot
 
     return np.array(encoded_seqs)
+
+
+def group_by_hgroup(hgroup_labels):
+    '''Group the sequences by H-group
+    '''
+
+    unique_hgroups = np.unique(hgroup_labels)
+    match_indices = [] #Indices for sequences belonging to the same H-group
+    #Go through all unique hgroups
+    for u_group in unique_hgroups:
+        match_indices.append(np.where(hgroup_labels==u_group)[0])
+
+    return np.array(match_indices)

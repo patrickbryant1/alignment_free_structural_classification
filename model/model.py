@@ -5,13 +5,11 @@
 import argparse
 import sys
 import numpy as np
-from ast import literal_eval
 import pandas as pd
-import glob
-
+import time
 #Preprocessing
 from collections import Counter
-from processing import one_hot
+from processing import one_hot, group_by_hgroup
 
 #Keras
 import tensorflow as tf
@@ -61,32 +59,36 @@ def read_net_params(params_file):
     return net_params
 
 
-def get_batch(sequences,batch_size,s="train"):
+def get_batch(grouped_labels,sequences,batch_size,s="train"):
     """
     Create batch of n pairs
     """
 
-    random_numbers = np.random.choice(len(sequences),size=(batch_size,),replace=False) #without replacement
+    random_numbers = np.random.choice(len(grouped_labels),size=(batch_size,),replace=False) #without replacement
 
     #initialize vector for the targets
     targets=[]
 
     #Get batch data - make half from the same H-group and half from different
     for i in random_numbers:
+        matches = grouped_labels[i]
+        pdb.set_trace()
+
 
 
     return pairs, targets
 
-def generate(sequences,batch_size, s="train"):
+def generate(grouped_labels,sequences,batch_size, s="train"):
     """
     a generator for batches, so model.fit_generator can be used.
     """
     while True:
-        pairs, targets = get_batch(sequences,batch_size,s)
+        pairs, targets = get_batch(hgroup_labels,sequences,batch_size,s)
         yield (pairs, targets)
 
 ######################MAIN######################
 args = parser.parse_args()
+t1 = time.time()
 sequence_df = pd.read_csv(args.sequence_df[0])
 #params_file = args.params_file[0]
 outdir = args.outdir[0]
@@ -97,16 +99,27 @@ np.random.seed(2) #Set random seed - ensures same split every time
 #Onehot encode sequences
 sequences = np.array(sequence_df['sequence'])
 encoded_seqs = one_hot(sequences)
+#Too large to save
+
+
 #Get H-group labels
+try:
+    grouped_labels = np.load(outdir+'grouped_labels.npy', allow_pickle=True)
+except:
+    hgroup_labels = np.array(sequence_df['H-group'])
+    grouped_labels = group_by_hgroup(hgroup_labels)
+    #Save
+    np.save(outdir+'grouped_labels.npy',grouped_labels)
+t2 = time.time()
+print('Formatted in', np.round(t2-t1,2),'seconds')
 
 #Tensorboard for logging and visualization
 #log_name = str(time.time())
 #tensorboard = TensorBoard(log_dir=out_dir+log_name)
 
-
 ######MODEL######
 #Parameters
-net_params = read_net_params(params_file)
+#net_params = read_net_params(params_file)
 
 #Variable params
 
@@ -116,11 +129,8 @@ in_1 = keras.Input(shape = [None,21])
 in_2 = keras.Input(shape = [None,21])
 
 #Initial convolution
-in_1_conv = LSTM(10, return_sequences=True)(in_1)
-in_2_conv = LSTM(10, return_sequences=True)(in_1)
-
-x1 = resnet(in_1_conv, num_res_blocks)
-x2 = resnet(in_2_conv, num_res_blocks)
+x1 = LSTM(10, return_sequences=True)(in_1)
+x2 = LSTM(10, return_sequences=True)(in_1)
 
 act1=Dense(10, activation='softmax')(x1)
 act2=Dense(10, activation='softmax')(x2)
@@ -147,7 +157,7 @@ print(model.summary())
 
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
-model.fit_generator(generate(sequences,batch_size),
+model.fit_generator(generate(grouped_labels,sequences,batch_size),
             steps_per_epoch=int(2*len(sequences)/batch_size),
             epochs=num_epochs,
             shuffle=True #Dont feed continuously
