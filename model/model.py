@@ -175,7 +175,7 @@ print(model.summary())
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
 model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
-            steps_per_epoch=int(2*len(sequences)/batch_size),
+            steps_per_epoch=int(len(grouped_labels)/batch_size),
             epochs=1,
             shuffle=True #Dont feed continuously
             )
