@@ -17,14 +17,9 @@ from processing import one_hot
 import tensorflow as tf
 from tensorflow.keras import regularizers,optimizers
 import tensorflow.keras as keras
-from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, Callback
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, Dropout, Activation, Conv1D, Reshape, MaxPooling1D, dot, Masking
-from tensorflow.keras.layers import Activation, RepeatVector, Permute, Multiply, Lambda, GlobalAveragePooling1D
-from tensorflow.keras.layers import concatenate, add, Conv1D, BatchNormalization, Flatten, Subtract
-from tensorflow.keras.backend import epsilon, clip, get_value, set_value, transpose, variable, square
-from tensorflow.layers import AveragePooling1D
+from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, BatchNormalization, Flatten, Subtract
 from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 #visualization
 from tensorflow.keras.callbacks import TensorBoard
@@ -65,61 +60,29 @@ def read_net_params(params_file):
 
     return net_params
 
-def pad_cut(ar, x, y):
-    '''Pads or cuts a 1D array to len x
-    '''
-    shape = ar.shape
 
-    if max(shape) < x:
-        empty = np.zeros((x,y))
-        empty[0:len(ar)]=ar
-        ar = empty
-    else:
-        ar = ar[0:x]
-    return ar
-
-def get_batch(batch_size,s="train"):
+def get_batch(sequences,batch_size,s="train"):
     """
     Create batch of n pairs
     """
-    x1 = [*train_df['enc1']]
-    x2 = [*train_df['enc2']]
-    #x3 = [*train_df['MLAAdist_x']]
-    X = [x1, x2]
-    scores = np.asarray(train_df["global_lddt"])
 
-    random_numbers = np.random.choice(len(scores),size=(batch_size,),replace=False) #without replacement
+    random_numbers = np.random.choice(len(sequences),size=(batch_size,),replace=False) #without replacement
 
-    #initialize 2 empty arrays for the input image batch
-    pairs=[np.zeros((batch_size, 300, 22)) for i in range(2)]
+    #initialize vector for the targets
+    targets=[]
 
-    # initialize vector for the targets
-    targets=np.zeros((batch_size,))
-
-    #Get batch data
-    j = 0 #Placement in pairs and targets
+    #Get batch data - make half from the same H-group and half from different
     for i in random_numbers:
-      r1 = np.random.choice(2) #Choose which sequence should end up in siamese 1 or 2
-      r2 = np.setdiff1d([0,1], r1)[0]
 
-      enc1 = np.eye(22)[literal_eval(X[r1][i])]
-      enc2 = np.eye(22)[literal_eval(X[r2][i])]
-      #mldist = np.repeat(x3[i],300)
-      pairs[0][j,:,0:22] = pad_cut(enc1, 300, 22)
-      #pairs[0][j,:,22] = mldist
-      pairs[1][j,:,0:22] = pad_cut(enc2, 300, 22)
-      #pairs[1][j,:,22] = mldist
-      targets[j] = scores[i]
-      j+=1
 
     return pairs, targets
 
-def generate(batch_size, s="train"):
+def generate(sequences,batch_size, s="train"):
     """
     a generator for batches, so model.fit_generator can be used.
     """
     while True:
-        pairs, targets = get_batch(batch_size,s)
+        pairs, targets = get_batch(sequences,batch_size,s)
         yield (pairs, targets)
 
 ######################MAIN######################
@@ -134,216 +97,58 @@ np.random.seed(2) #Set random seed - ensures same split every time
 #Onehot encode sequences
 sequences = np.array(sequence_df['sequence'])
 encoded_seqs = one_hot(sequences)
-pdb.set_trace()
+#Get H-group labels
+
 #Tensorboard for logging and visualization
-log_name = str(time.time())
-tensorboard = TensorBoard(log_dir=out_dir+log_name)
+#log_name = str(time.time())
+#tensorboard = TensorBoard(log_dir=out_dir+log_name)
 
 
 ######MODEL######
 #Parameters
 net_params = read_net_params(params_file)
-input_dim = (600,22)
-num_classes = max(bins.shape)
-kernel_size = 22 #google uses 21 (but they don't have gaps)
 
 #Variable params
-num_res_blocks = int(net_params['num_res_blocks'])
-base_epochs = int(net_params['base_epochs'])
-finish_epochs = int(net_params['finish_epochs'])
-filters = int(net_params['filters']) # Dimension of the embedding vector.
-dilation_rate = int(net_params['dilation_rate'])  #dilation rate for convolutions
-alpha = int(net_params['alpha'])
+
 batch_size = 32 #int(net_params['batch_size'])
-#lr opt
-find_lr = False
-#LR schedule
-step_size = 5 #should increase alot - maybe 5?
-num_cycles = 3
-num_epochs = step_size*2*num_cycles
-num_steps = int(len(train_df)/batch_size)
-max_lr = 0.0015
-min_lr = max_lr/10
-lr_change = (max_lr-min_lr)/step_size  #(step_size*num_steps) #How mauch to change each batch
-lrate = min_lr
 #MODEL
-in_1 = keras.Input(shape = input_dim)
-in_2 = keras.Input(shape = input_dim)
-def resnet(x, num_res_blocks):
-	"""Builds a resnet with 1D convolutions of the defined depth.
-	"""
-
-
-    	# Instantiate the stack of residual units
-    	#Similar to ProtCNN, but they used batch_size = 64, 2000 filters and kernel size of 21
-	for res_block in range(num_res_blocks):
-		batch_out1 = BatchNormalization()(x) #Bacth normalize, focus on segment
-		activation1 = Activation('relu')(batch_out1)
-		conv_out1 = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = dilation_rate, input_shape=input_dim, padding ="same")(activation1)
-		batch_out2 = BatchNormalization()(conv_out1) #Bacth normalize, focus on segment
-		activation2 = Activation('relu')(batch_out2)
-        #Downsample - half filters
-		conv_out2 = Conv1D(filters = int(filters/2), kernel_size = kernel_size, dilation_rate = 1, input_shape=input_dim, padding ="same")(activation2)
-		x = Conv1D(filters = int(filters/2), kernel_size = kernel_size, dilation_rate = 1, input_shape=input_dim, padding ="same")(x)
-		x = add([x, conv_out2]) #Skip connection
-
-
-
-	return x
+in_1 = keras.Input(shape = [None,21])
+in_2 = keras.Input(shape = [None,21])
 
 #Initial convolution
-in_1_conv = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = 2, input_shape=input_dim, padding ="same")(in_1)
-in_2_conv = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = 2, input_shape=input_dim, padding ="same")(in_2)
-#Output (batch, steps(len), filters), filters = channels in next
+in_1_conv = LSTM(10, return_sequences=True)(in_1)
+in_2_conv = LSTM(10, return_sequences=True)(in_1)
+
 x1 = resnet(in_1_conv, num_res_blocks)
 x2 = resnet(in_2_conv, num_res_blocks)
 
-#Maxpool along sequence axis
-maxpool1 = MaxPooling1D(pool_size=seq_length)(x1)
-maxpool2 = MaxPooling1D(pool_size=seq_length)(x2)
-#cat = concatenate([maxpool1, maxpool2]) #Cat convolutions
+act1=Dense(10, activation='softmax')(x1)
+act2=Dense(10, activation='softmax')(x2)
 
-flat1 = Flatten()(maxpool1)  #Flatten
-flat2 = Flatten()(maxpool2)  #Flatten
-
-#Should have sum of two losses:
-#1. How closely the predicted lddt matches the real one
-#2. How closely the probability distribution of the bins match a gaussian distribution (kl divergence)
-#Perhaps I should try to predict the deviation from the mean, since the scores are so centered around the mean.
 # Add a customized layer to compute the absolute difference between the encodings
 L1_layer = Lambda(lambda tensors:abs(tensors[0] - tensors[1]))
-L1_distance = L1_layer([flat1, flat2])
-
-# Add a customized layer to compute the absolute difference between the encodings
-#L2_layer = Lambda(lambda tensors:keras.backend.sqrt(keras.backend.square(tensors[0] - tensors[1])))
-#L2_distance = L2_layer([flat1, flat2])
-#Dense final layer for classification
-
-probabilities = Dense(num_classes, activation='softmax')(L1_distance)
-bins_K = variable(value=bins)
-
-def multiply(x):
-  return tf.matmul(x, bins_K,transpose_b=True)
-
-pred_vals = Lambda(multiply)(probabilities)
-#The length of the validation data must be a multiple of batch size!
-#Other wise you will have shape mismatches
-
-#Custom loss
-def bin_loss(y_true, y_pred):
-  #Shold make this a log loss
-        g_loss = mean_absolute_error(y_true, y_pred) #general, compare difference
-	#log_g_loss = keras.backend.log(g_loss/100)
-  #Gauss for loss
-	#gauss = keras.backend.random_normal_variable(shape=(batch_size, 1), mean=0.7, scale=0.3) # Gaussian distribution, scale: Float, standard deviation of the normal distribution.
-        kl_loss = keras.losses.kullback_leibler_divergence(y_true, y_pred) #better than comparing to gaussian
-        sum_kl_loss = keras.backend.sum(kl_loss, axis =0)
-        sum_g_loss = keras.backend.sum(g_loss, axis =0)
-        sum_g_loss = sum_g_loss*alpha #This is basically a loss penalty
+L1_distance = L1_layer([act1, act2])
 
 
-        # #Normalize due to proportion
-        # kl_p = sum_kl_loss/(sum_g_loss+sum_kl_loss)
-        # g_p = sum_g_loss/(sum_g_loss+sum_kl_loss)
-
-        # sum_kl_loss = sum_kl_loss/kl_p
-        # sum_g_loss = sum_g_loss/g_p
-        loss = sum_g_loss+sum_kl_loss
-        #Scale with R? loss = loss/R - on_batch_end
-  	#Normalize loss by percentage contributions: divide by contribution
-  	#Write batch generator to avoid incompatibility in shapes
-  	#problem at batch end due to kongruens
-        return loss
-
-#Custom validation loss
-class IntervalEvaluation(Callback):
-    def __init__(self, validation_data=(), interval=1):
-        super(Callback, self).__init__()
-
-        self.interval = interval
-        self.X_val, self.y_val = validation_data
-
-    def on_epoch_end(self, epoch, logs={}):
-        if epoch % self.interval == 0:
-            y_pred = self.model.predict(self.X_val, verbose=0)
-            diff = [y_pred[i]-y_valid[i] for i in range(len(y_valid))]
-            score = np.average(np.absolute(diff))
-            #Pearson correlation coefficient
-            R,pval = stats.pearsonr(y_valid, y_pred.flatten())
-            R = np.round(R, decimals = 3)
-            score = np.round(score, decimals = 3)
-            print('epoch: ',epoch, ' score: ', score, ' R: ', R)
-            valid_metrics[0].append(score)
-            valid_metrics[1].append(R)
-            np.savetxt(out_dir+'validpred_'+str(epoch)+'_'+str(score)+'_'+str(R)+'.txt', y_pred)
-
-#Model: define inputs and outputs
-model = Model(inputs = [in_1, in_2], outputs = pred_vals)
-opt = optimizers.Adam(clipnorm=1., lr = lrate) #remove clipnorm and add loss penalty - clipnorm works better
-model.compile(loss=bin_loss,
-              optimizer=opt)
-
-
-
-if find_lr == True:
-  lr_finder = LRFinder(model)
-  #Validation data
-  train_enc1 = [pad_cut(np.eye(22)[literal_eval(x)], 300, 22) for x in [*train_df['enc1']]]
-  train_enc2 = [pad_cut(np.eye(22)[literal_eval(x)], 300, 22) for x in [*train_df['enc2']]]
-  X_train = [np.asarray(train_enc1), np.asarray(train_enc2)]
-  y_train = np.asarray(train_df['global_lddt'])
-  lr_finder.find(X_train, y_train, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=1)
-  losses = lr_finder.losses
-  lrs = lr_finder.lrs
-  l_l = np.asarray([lrs, losses])
-  np.savetxt(out_dir+'lrs_losses.txt', l_l)
-  num_epochs = 0
-
-#LR schedule
-class LRschedule(Callback):
-  '''lr scheduel according to one-cycle policy.
-  '''
-  def __init__(self, interval=1):
-    super(Callback, self).__init__()
-    self.lr_change = lr_change #How mauch to change each batch
-    self.lr = min_lr
-    self.interval = interval
-
-  def on_epoch_end(self, epoch, logs={}):
-    if epoch > 0 and epoch%step_size == 0:
-      self.lr_change = self.lr_change*-1 #Change decrease/increase
-
-    self.lr = self.lr + self.lr_change
-  # def on_batch_end(self, batch, logs={}):
-  #   self.lr = self.lr + self.lr_change
-    keras.backend.set_value(self.model.optimizer.lr, self.lr)
-
-
-#Lrate
-lrate = LRschedule()
-
+probabilities = Dense(2, activation='softmax')(L1_distance)
 
 #Checkpoint
-filepath=out_dir+"weights-{epoch:02d}-.hdf5"
-checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
+#filepath=out_dir+"weights-{epoch:02d}-.hdf5"
+#checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
 
-#Validation data
-ival = IntervalEvaluation(validation_data=(X_valid, y_valid), interval=1)
+#Model: define inputs and outputs
+model = Model(inputs = [in_1, in_2], outputs = probabilities)
+opt = optimizers.Adam(clipnorm=1., lr = lrate) #remove clipnorm and add loss penalty - clipnorm works better
+model.compile(loss='binary_crossentropy',
+              optimizer=opt)
 
 #Summary of model
 print(model.summary())
 
-callbacks=[lrate, tensorboard, checkpoint, ival]
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
-model.fit_generator(generate(batch_size),
-            steps_per_epoch=num_steps,
+model.fit_generator(generate(sequences,batch_size),
+            steps_per_epoch=int(2*len(sequences)/batch_size),
             epochs=num_epochs,
-            #validation_data = [X_valid, y_valid],
-            shuffle=True, #Dont feed continuously
-            callbacks=callbacks)
-
-
-#Save validation metrics
-valid_metrics = np.asarray(valid_metrics)
-np.savetxt('valid_metrics.txt', valid_metrics)
+            shuffle=True #Dont feed continuously
+            )
