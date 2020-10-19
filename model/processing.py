@@ -38,7 +38,7 @@ def one_hot(sequences):
             enc_seq=zeros
 
         #Save the sncoded sequence
-        encoded_seqs.append(np.eye(21)[enc_seq]) #Onehot
+        encoded_seqs.append(enc_seq) #Onehot
 
     return np.array(encoded_seqs)
 
