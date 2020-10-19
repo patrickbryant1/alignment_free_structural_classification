@@ -133,6 +133,7 @@ np.random.seed(2) #Set random seed - ensures same split every time
 
 #Onehot encode sequences
 sequences = np.array(sequence_df['sequence'])
+encoded_seqs = one_hot(sequences)
 pdb.set_trace()
 #Tensorboard for logging and visualization
 log_name = str(time.time())
