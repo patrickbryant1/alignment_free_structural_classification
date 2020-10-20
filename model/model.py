@@ -58,41 +58,61 @@ def read_net_params(params_file):
 
     return net_params
 
+#
+# def get_batch(grouped_labels,encoded_seqs,batch_size,s="train"):
+#     """
+#     Create batch of n pairs
+#     """
+#
+#     random_numbers = np.random.choice(len(grouped_labels),size=(batch_size*2,),replace=False) #without replacement
+#
+#     #initialize vector for the targets
+#     targets=[]
+#     s1 = []
+#     s2 = []
+#     #Get batch data - make half from the same H-group and half from different
+#     for i in range(batch_size):
+#         matches = grouped_labels[random_numbers[i]]
+#         #See if match or not
+#         if np.random.randint(2)==0: #If match add from same H-group
+#             if matches.shape[0]>1: #See if theere is more than one sequence in the H-group
+#                 pick = np.random.choice(matches,size=2, replace=False)
+#                 s1.append(np.eye(21)[encoded_seqs[pick[0]]])
+#                 s2.append(np.eye(21)[encoded_seqs[pick[1]]])
+#             else:
+#                 s1.append(np.eye(21)[encoded_seqs[matches[0]]])
+#                 s2.append(np.eye(21)[encoded_seqs[matches[0]]])
+#
+#             targets.append(1)
+#         else: #If not match add from different H-groups
+#             pick = np.random.choice(matches,size=1, replace=False)
+#             unmatch = np.random.choice(grouped_labels[random_numbers[i+batch_size]],size=1, replace=False)
+#             s1.append(np.eye(21)[encoded_seqs[pick[0]]])
+#             s2.append(np.eye(21)[encoded_seqs[unmatch[0]]])
+#
+#             targets.append(0)
+#
+#     return [np.array(s1), np.array(s2)], np.array(targets)
+
 
 def get_batch(grouped_labels,encoded_seqs,batch_size,s="train"):
     """
     Create batch of n pairs
     """
 
-    random_numbers = np.random.choice(len(grouped_labels),size=(batch_size*2,),replace=False) #without replacement
+    random_numbers = np.random.choice(len(grouped_labels),size=(batch_size,),replace=False) #without replacement
 
     #initialize vector for the targets
     targets=[]
     s1 = []
-    s2 = []
     #Get batch data - make half from the same H-group and half from different
-    for i in range(batch_size):
-        matches = grouped_labels[random_numbers[i]]
-        #See if match or not
-        if np.random.randint(2)==0: #If match add from same H-group
-            if matches.shape[0]>1: #See if theere is more than one sequence in the H-group
-                pick = np.random.choice(matches,size=2, replace=False)
-                s1.append(np.eye(21)[encoded_seqs[pick[0]]])
-                s2.append(np.eye(21)[encoded_seqs[pick[1]]])
-            else:
-                s1.append(np.eye(21)[encoded_seqs[matches[0]]])
-                s2.append(np.eye(21)[encoded_seqs[matches[0]]])
+    for i in random_numbers:
+        matches = grouped_labels[i]
+        pick = np.random.choice(matches,size=1, replace=False)
+        s1.append(np.eye(21)[encoded_seqs[pick[0]]])
+        targets.append(np.eye(len(grouped_labels))[i])
 
-            targets.append(1)
-        else: #If not match add from different H-groups
-            pick = np.random.choice(matches,size=1, replace=False)
-            unmatch = np.random.choice(grouped_labels[random_numbers[i+batch_size]],size=1, replace=False)
-            s1.append(np.eye(21)[encoded_seqs[pick[0]]])
-            s2.append(np.eye(21)[encoded_seqs[unmatch[0]]])
-
-            targets.append(0)
-
-    return [np.array(s1), np.array(s2)], np.array(targets)
+    return np.array(s1), np.array(targets)
 
 def generate(grouped_labels,encoded_seqs,batch_size, s="train"):
     """
@@ -139,8 +159,8 @@ print('Formatted in', np.round(t2-t1,2),'seconds')
 #net_params = read_net_params(params_file)
 
 #Variable params
-
-batch_size = 32 #int(net_params['batch_size'])
+num_epochs=30
+batch_size = 64 #int(net_params['batch_size'])
 kernel_size = 21
 input_dim = (600,21)
 num_res_blocks=1
@@ -148,7 +168,7 @@ dilation_rate = 5
 seq_length=600
 #MODEL
 in_1 = keras.Input(shape = [600,21])
-in_2 = keras.Input(shape = [600,21])
+#in_2 = keras.Input(shape = [600,21])
 
 def resnet(x, num_res_blocks):
 	"""Builds a resnet with 1D convolutions of the defined depth.
@@ -174,33 +194,33 @@ def resnet(x, num_res_blocks):
 
 #Initial convolution
 in_1_conv = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = 2, input_shape=input_dim, padding ="same")(in_1)
-in_2_conv = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = 2, input_shape=input_dim, padding ="same")(in_2)
+#in_2_conv = Conv1D(filters = filters, kernel_size = kernel_size, dilation_rate = 2, input_shape=input_dim, padding ="same")(in_2)
 #Output (batch, steps(len), filters), filters = channels in next
 x1 = resnet(in_1_conv, num_res_blocks)
-x2 = resnet(in_2_conv, num_res_blocks)
+#x2 = resnet(in_2_conv, num_res_blocks)
 
 #Maxpool along sequence axis
 maxpool1 = MaxPooling1D(pool_size=seq_length)(x1)
-maxpool2 = MaxPooling1D(pool_size=seq_length)(x2)
+#maxpool2 = MaxPooling1D(pool_size=seq_length)(x2)
 
 flat1 = Flatten()(maxpool1)  #Flatten
-flat2 = Flatten()(maxpool2)  #Flatten
+#flat2 = Flatten()(maxpool2)  #Flatten
 
 #Should have sum of two losses:
 # Add a customized layer to compute the absolute difference between the encodings
-L1_layer = Lambda(lambda tensors:abs(tensors[0] - tensors[1]))
-L1_distance = L1_layer([flat1, flat2])
+#L1_layer = Lambda(lambda tensors:abs(tensors[0] - tensors[1]))
+#L1_distance = L1_layer([flat1, flat2])
 
-probabilities = Dense(1, activation='softmax')(L1_distance)
+probabilities = Dense(len(grouped_labels), activation='softmax')(flat1)
 
 #Checkpoint
 #filepath=out_dir+"weights-{epoch:02d}-.hdf5"
 #checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
 
 #Model: define inputs and outputs
-model = Model(inputs = [in_1, in_2], outputs = probabilities)
-opt = optimizers.Adam(clipnorm=1., lr = 0.01) #remove clipnorm and add loss penalty - clipnorm works better
-model.compile(loss='binary_crossentropy',
+model = Model(inputs = in_1, outputs = probabilities)
+opt = optimizers.Adam(clipnorm=1., lr = 0.001) #remove clipnorm and add loss penalty - clipnorm works better
+model.compile(loss='categorical_crossentropy',
               optimizer=opt,
               metrics = ['accuracy'])
 
@@ -211,6 +231,5 @@ print(model.summary())
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
 model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
             steps_per_epoch=int(len(grouped_labels)/batch_size),
-            epochs=5,
-            shuffle=True #Dont feed continuously
+            epochs=num_epochs
             )

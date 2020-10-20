@@ -2,4 +2,7 @@
 SEQDF=../data/seqdf.csv
 OUTDIR=../results/
 
-./model.py --sequence_df $SEQDF --outdir $OUTDIR
+SINGULARITY=/opt/singularity3/bin/singularity
+SINGIMAGE=/home/pbryant/singularity_ims/tf13.sif
+
+$SINGULARITY run --nv $SINGIMAGE python ./model.py --sequence_df $SEQDF --outdir $OUTDIR
