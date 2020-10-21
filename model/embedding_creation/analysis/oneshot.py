@@ -58,65 +58,6 @@ def load_model(json_file, weights):
 	#model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 	return model
 
-######################MAIN######################
-args = parser.parse_args()
-t1 = time.time()
-sequence_df = pd.read_csv(args.sequence_df[0])
-
-#Assign data and labels
-#Onehot encode sequences
-sequences = np.array(sequence_df['sequence'])
-encoded_seqs = one_hot(sequences)
-
-#Get H-group labels
-try:
-    grouped_labels = np.load(outdir+'grouped_labels.npy', allow_pickle=True)
-except:
-    hgroup_labels = np.array(sequence_df['H-group'])
-    grouped_labels = group_by_hgroup(hgroup_labels)
-
-t2 = time.time()
-print('Formatted in', np.round(t2-t1,2),'seconds')
-args = parser.parse_args()
-json_file = (args.json_file[0])
-weights = (args.weights[0])
-outdir = args.outdir[0]
-
-
-#Load and run model
-model = load_model(json_file, weights)
-
-#Get embedding layers
-#emb_layer = Model(inputs=model.input, outputs=model.get_layer('emb1').output)
-inp = model.input                                           # input placeholder
-outputs = [model.layers[-2].output] #the second to last layer is the embedding, the last is the dense layer for classification
-functors = [K.function([inp, K.learning_phase()], [out]) for out in outputs]
-#K.function creates theano/tensorflow tensor functions which is later used to get the output from the symbolic graph given the input.
-#Now K.learning_phase() is required as an input as many Keras layers like Dropout/Batchnomalization depend on it to change behavior during training and test time
-#I use batch BatchNormalization
-batch_size=32
-#Get average embeddings for all entries
-
-embeddings = np.zeros((len(encoded_seqs),5))
-for i in range(0,len(encoded_seqs)-batch_size,batch_size):
-    onehot_seqs = [] #Encoded sequences
-    for j in range(i,i+batch_size):
-        onehot_seqs.append(np.eye(21)[encoded_seqs[i]])
-    #Obtain embeddings
-    embeddings[i:i+batch_size]=functors[0](np.array(onehot_seqs))[0]
-
-#Compute class labels by averaging the embeddings for each H-group.
-class_embeddings = []
-
-for i in range(len(grouped_labels)):
-    group_indices = grouped_labels[i]
-    class_embeddings.append(np.median(embeddings[group_indices], axis = 0))
-
-class_embeddings = np.asarray(class_embeddings)
-#Save class embeddings
-np.save(outdir+'class_emb.npy', class_embeddings)
-pdb.set_trace()
-
 def alternative_sim(class_embeddings, emb):
     '''Compute an alternative similarity measure
     '''
@@ -128,7 +69,8 @@ def alternative_sim(class_embeddings, emb):
     return esim
 
 def zsl_test(indices, type, out_dir):
-    "A function that runs ZSL according to provided data"
+    '''A function that runs ZSL according to provided data
+    '''
     item = average_emb[indices]
     targets = y[indices]
     name = 'average_emb'
@@ -153,6 +95,71 @@ def zsl_test(indices, type, out_dir):
     np.save(out_dir+type+'_'+name+'_pred_ranks.npy', pred_ranks)
 
     return None
+
+######################MAIN######################
+args = parser.parse_args()
+t1 = time.time()
+sequence_df = pd.read_csv(args.sequence_df[0])
+
+#Assign data and labels
+#Onehot encode sequences
+sequences = np.array(sequence_df['sequence'])
+encoded_seqs = one_hot(sequences)
+
+#Get H-group labels
+try:
+    grouped_labels = np.load(outdir+'grouped_labels.npy', allow_pickle=True)
+except:
+    hgroup_labels = np.array(sequence_df['H-group'])
+    grouped_labels = group_by_hgroup(hgroup_labels)
+
+t2 = time.time()
+print('Formatted in', np.round(t2-t1,2),'seconds')
+args = parser.parse_args()
+json_file = (args.json_file[0])
+weights = (args.weights[0])
+outdir = args.outdir[0]
+
+try:
+    class_embeddings=np.load(outdir+'class_emb.npy', allow_pickle=True)
+
+except:
+    #Load and run model
+    model = load_model(json_file, weights)
+
+    #Get embedding layers
+    #emb_layer = Model(inputs=model.input, outputs=model.get_layer('emb1').output)
+    inp = model.input                                           # input placeholder
+    outputs = [model.layers[-2].output] #the second to last layer is the embedding, the last is the dense layer for classification
+    functors = [K.function([inp, K.learning_phase()], [out]) for out in outputs]
+    #K.function creates theano/tensorflow tensor functions which is later used to get the output from the symbolic graph given the input.
+    #Now K.learning_phase() is required as an input as many Keras layers like Dropout/Batchnomalization depend on it to change behavior during training and test time
+    #I use batch BatchNormalization
+    batch_size=32
+    #Get average embeddings for all entries
+
+    embeddings = np.zeros((len(encoded_seqs),5))
+    for i in range(0,len(encoded_seqs)-batch_size,batch_size):
+        onehot_seqs = [] #Encoded sequences
+        for j in range(i,i+batch_size):
+            onehot_seqs.append(np.eye(21)[encoded_seqs[i]])
+        #Obtain embeddings
+        embeddings[i:i+batch_size]=functors[0](np.array(onehot_seqs))[0]
+
+    #Compute class labels by averaging the embeddings for each H-group.
+    class_embeddings = []
+
+    for i in range(len(grouped_labels)):
+        group_indices = grouped_labels[i]
+        class_embeddings.append(np.median(embeddings[group_indices], axis = 0))
+
+    class_embeddings = np.asarray(class_embeddings)
+    #Save class embeddings
+    np.save(outdir+'class_emb.npy', class_embeddings)
+
+#Run zero shot learning
+pdb.set_trace()
+
 
 zsl_test(train_index, 'train', out_dir)
 zsl_test(test_index, 'test', out_dir)
