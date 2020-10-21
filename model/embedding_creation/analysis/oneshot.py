@@ -1,4 +1,4 @@
-#!/usr/share/python3
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -83,37 +83,35 @@ outdir = args.outdir[0]
 model = load_model(json_file, weights)
 
 #Get embedding layers
+pdb.set_trace()
 emb_layer = Model(inputs=model.input, outputs=model.get_layer('emb1').output)
 
 batch_size=32
 #Get average embeddings for all entries
 
+embeddings = []
 for i in range(0,len(sequences)-batch_size,batch_size):
     encoded_seqs = [] #Encoded sequences
     for j in range(i,i+batch_size):
         encoded_seqs.append(np.eye(21)[sequences[i]])
     #Obtain embeddings
-    embeddings = np.asarray(emb_layer.predict([X]))
+    embeddings.append(np.asarray(emb_layer.predict(np.array(encoded_seqs))))
 
-average_emb = np.average([emb1, emb2], axis = 0)
-#Save embeddings
-#np.save(out_dir+'average_feature_emb.npy', average_emb)
-
+#Convert to array
+embeddings = np.array(embeddings)
 #Compute class labels by averaging the embeddings for each H-group.
 class_embeddings = []
-unique_groups = np.unique(y)
 
-for i in range(0,len(unique_groups)):
-    emb_match = average_emb[np.where(y == unique_groups[i])]
-    class_emb = np.average(emb_match, axis = 0)
+for i in range(len(grouped_labels)):
+    group_indices = grouped_labels[i]
+    pdb.set_trace()
+    class_emb = np.average(embeddings[group_indices], axis = 0)
     class_embeddings.append(class_emb)
 
 class_embeddings = np.asarray(class_embeddings)
 #Save class embeddings
-np.save(out_dir+'class_emb.npy', class_embeddings)
+np.save(outdir+'class_emb.npy', class_embeddings)
 
-train_index = np.isin(y, converted_train_classes)
-test_index = np.isin(y, test_classes)
 
 def alternative_sim(class_embeddings, emb):
     '''Compute an alternative similarity measure
