@@ -23,13 +23,16 @@ from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mea
 from tensorflow.keras.callbacks import TensorBoard
 from lr_finder import LRFinder
 
+#Save model
+from tensorflow.keras.models import model_from_json
+
 import pdb
 #Arguments for argparse module:
 parser = argparse.ArgumentParser(description = '''A Neural Network for embedding structural space.''')
 
 parser.add_argument('--sequence_df', nargs=1, type= str, default=sys.stdin, help = 'Path to sequence_df.')
 
-#parser.add_argument('--params_file', nargs=1, type= str, default=sys.stdin, help = 'Path to file with net parameters')
+parser.add_argument('--params_file', nargs=1, type= str, default=sys.stdin, help = 'Path to file with net parameters')
 
 parser.add_argument('--outdir', nargs=1, type= str, default=sys.stdin, help = 'Path to output directory. Include /in end')
 
@@ -91,7 +94,7 @@ def generate(grouped_labels,encoded_seqs,batch_size, s="train"):
 args = parser.parse_args()
 t1 = time.time()
 sequence_df = pd.read_csv(args.sequence_df[0])
-#params_file = args.params_file[0]
+params_file = args.params_file[0]
 outdir = args.outdir[0]
 
 #Assign data and labels
@@ -100,9 +103,6 @@ np.random.seed(2) #Set random seed - ensures same split every time
 #Onehot encode sequences
 sequences = np.array(sequence_df['sequence'])
 encoded_seqs = one_hot(sequences)
-
-#Too large to save
-
 
 #Get H-group labels
 try:
@@ -125,23 +125,22 @@ tensorboard = TensorBoard(log_dir=outdir+log_name)
 seq_length=600 #From domain length distribution
 kernel_size = 21
 input_dim = (600,21)
-
-#net_params = read_net_params(params_file)
+net_params = read_net_params(params_file)
 
 #Variable params
-batch_size = 64 #int(net_params['batch_size'])
-filters =20
-num_res_blocks=1
-dilation_rate = 5
+batch_size = int(net_params['batch_size']) #64
+filters = int(net_params['filters']) #20
+num_res_blocks= int(net_params['num_res_blocks']) #1
+dilation_rate = int(net_params['dilation_rate']) #5
 
 #lr opt
 find_lr = False
 #LR schedule
-step_size = 10
-num_cycles = 10
+step_size = int(net_params['step_size'])
+num_cycles = int(net_params['num_cycles'])
 num_epochs = step_size*2*num_cycles
 num_steps = int(len(grouped_labels)/batch_size)
-max_lr = 0.05
+max_lr = 0.01 #0.001
 min_lr = max_lr/10
 lr_change = (max_lr-min_lr)/step_size  #(step_size*num_steps) #How mauch to change each batch
 lrate = min_lr
@@ -238,4 +237,14 @@ history = model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
             epochs=1, #num_epochs,
             callbacks=callbacks
             )
-pdb.set_trace()
+
+#Save loss and accuracy
+losses = np.array(history.history['loss'])
+np.save(outdir+'losses.npy', losses)
+acc = np.array(history.history['acc'])
+np.save(outdir+'acc.npy', acc)
+#Save model for future use
+#serialize model to JSON
+model_json = model.to_json()
+with open(out_dir+"model.json", "w") as json_file:
+	json_file.write(model_json)

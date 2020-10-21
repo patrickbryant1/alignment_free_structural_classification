@@ -5,7 +5,7 @@
 Prints files with different combinations of parameters to be used to define different models.
 '''
 
-batch_size=[16,32,48]
+batch_size=[32,64]
 filters = [10,20]
 num_res_blocks=[1,2]
 dilation_rate = [3,5]
