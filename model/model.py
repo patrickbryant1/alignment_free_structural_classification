@@ -123,13 +123,13 @@ tensorboard = TensorBoard(log_dir=outdir+log_name)
 #Parameters
 #Fixed params
 seq_length=600 #From domain length distribution
+kernel_size = 21
 input_dim = (600,21)
 
 #net_params = read_net_params(params_file)
 
 #Variable params
 batch_size = 64 #int(net_params['batch_size'])
-kernel_size = 21
 filters =20
 num_res_blocks=1
 dilation_rate = 5
@@ -184,8 +184,8 @@ flat1 = Flatten()(maxpool1)  #Flatten
 probabilities = Dense(len(grouped_labels), activation='softmax')(flat1)
 
 #Checkpoint
-#filepath=outdir+"weights-{epoch:02d}-.hdf5"
-#checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
+filepath=outdir+"weights-{epoch:02d}-.hdf5"
+checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
 
 #Model: define inputs and outputs
 model = Model(inputs = in_1, outputs = probabilities)
@@ -197,7 +197,7 @@ model.compile(loss='categorical_crossentropy',
 if find_lr == True:
     lr_finder = LRFinder(model)
     #Encode all data
-    lr_finder.find(grouped_labels,encoded_seqs, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=5)
+    lr_finder.find(grouped_labels,encoded_seqs, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=1)
     losses = lr_finder.losses
     lrs = lr_finder.lrs
     l_l = np.asarray([lrs, losses])
@@ -230,11 +230,12 @@ lrate = LRschedule()
 print(model.summary())
 
 #Callbacks
-callbacks=[lrate, tensorboard]
+callbacks=[lrate, checkpoint]
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
-model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
+history = model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
             steps_per_epoch=num_steps,
-            epochs=num_epochs,
+            epochs=1, #num_epochs,
             callbacks=callbacks
             )
+pdb.set_trace()

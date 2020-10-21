@@ -1,0 +1,6 @@
+batch_size=16
+filters=10
+num_res_blocks=1
+dilation_rate=3
+step_size=10
+num_cycles=5
