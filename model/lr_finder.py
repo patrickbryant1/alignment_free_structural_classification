@@ -1,6 +1,7 @@
 import math
 from tensorflow.keras.callbacks import LambdaCallback
 import tensorflow.keras.backend as K
+import numpy as np
 import pdb
 
 
@@ -16,7 +17,7 @@ class LRFinder:
         self.lrs = []
         self.best_loss = 1e9
 
-    def get_batch(grouped_labels,encoded_seqs,batch_size,s="train"):
+    def get_batch(self,grouped_labels,encoded_seqs,batch_size,s="train"):
         """
         Create batch of n pairs
         """
@@ -35,12 +36,12 @@ class LRFinder:
 
         return np.array(s1), np.array(targets)
 
-    def generate(grouped_labels,encoded_seqs,batch_size, s="train"):
+    def generate(self,grouped_labels,encoded_seqs,batch_size, s="train"):
         """
         a generator for batches, so model.fit_generator can be used.
         """
         while True:
-            pairs, targets = get_batch(grouped_labels,encoded_seqs,batch_size,s)
+            pairs, targets = self.get_batch(grouped_labels,encoded_seqs,batch_size,s)
             yield (pairs, targets)
 
     def on_batch_end(self, batch, logs):
@@ -66,7 +67,7 @@ class LRFinder:
         print(' ',lr)
 
     def find(self, grouped_labels,encoded_seqs, start_lr, end_lr, batch_size=64, epochs=1):
-        num_batches = epochs * x_train.shape[0] / batch_size
+        num_batches = epochs * len(grouped_labels) / batch_size
         self.lr_mult = (end_lr / start_lr) ** (1 / num_batches)
 
         # Save weights into a file
@@ -80,8 +81,8 @@ class LRFinder:
 
         callback = LambdaCallback(on_batch_end=lambda batch, logs: self.on_batch_end(batch, logs))
 
-        model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
-                steps_per_epoch=num_steps, epochs=epochs,
+        self.model.fit_generator(self.generate(grouped_labels,encoded_seqs,batch_size),
+                steps_per_epoch=int(len(grouped_labels)/batch_size), epochs=epochs,
                         callbacks=[callback])
 
         # Restore the weights to the state before model fitting

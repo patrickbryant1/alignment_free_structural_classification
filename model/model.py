@@ -121,26 +121,27 @@ tensorboard = TensorBoard(log_dir=outdir+log_name)
 
 ######MODEL######
 #Parameters
+#Fixed params
+seq_length=600 #From domain length distribution
+input_dim = (600,21)
+
 #net_params = read_net_params(params_file)
 
 #Variable params
-num_epochs=200
 batch_size = 64 #int(net_params['batch_size'])
 kernel_size = 21
 filters =20
-input_dim = (600,21)
 num_res_blocks=1
 dilation_rate = 5
-seq_length=600
 
 #lr opt
-find_lr = True
+find_lr = False
 #LR schedule
 step_size = 10
 num_cycles = 10
 num_epochs = step_size*2*num_cycles
 num_steps = int(len(grouped_labels)/batch_size)
-max_lr = 0.0015
+max_lr = 0.05
 min_lr = max_lr/10
 lr_change = (max_lr-min_lr)/step_size  #(step_size*num_steps) #How mauch to change each batch
 lrate = min_lr
@@ -196,11 +197,11 @@ model.compile(loss='categorical_crossentropy',
 if find_lr == True:
     lr_finder = LRFinder(model)
     #Encode all data
-    lr_finder.find(grouped_labels,encoded_seqs, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=1)
+    lr_finder.find(grouped_labels,encoded_seqs, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=5)
     losses = lr_finder.losses
     lrs = lr_finder.lrs
     l_l = np.asarray([lrs, losses])
-    np.savetxt(outdir+'lrs_losses.txt', l_l)
+    np.save(outdir+'lrs_losses.npy', l_l)
     num_epochs = 0
 
 #LR schedule
