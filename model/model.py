@@ -234,7 +234,7 @@ callbacks=[lrate, checkpoint]
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
 history = model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
             steps_per_epoch=num_steps,
-            epochs=1, #num_epochs,
+            epochs=num_epochs,
             callbacks=callbacks
             )
 
@@ -246,5 +246,5 @@ np.save(outdir+'acc.npy', acc)
 #Save model for future use
 #serialize model to JSON
 model_json = model.to_json()
-with open(out_dir+"model.json", "w") as json_file:
+with open(outdir+"model.json", "w") as json_file:
 	json_file.write(model_json)
