@@ -97,29 +97,25 @@ functors = [K.function([inp, K.learning_phase()], [out]) for out in outputs]
 batch_size=32
 #Get average embeddings for all entries
 
-embeddings = []
+embeddings = np.zeros((len(encoded_seqs),5))
 for i in range(0,len(encoded_seqs)-batch_size,batch_size):
     onehot_seqs = [] #Encoded sequences
     for j in range(i,i+batch_size):
         onehot_seqs.append(np.eye(21)[encoded_seqs[i]])
     #Obtain embeddings
-    embeddings.append(functors[0](np.array(onehot_seqs))[0])
-pdb.set_trace()
-#Convert to array
-embeddings = np.array(embeddings)
+    embeddings[i:i+batch_size]=functors[0](np.array(onehot_seqs))[0]
+
 #Compute class labels by averaging the embeddings for each H-group.
 class_embeddings = []
 
 for i in range(len(grouped_labels)):
     group_indices = grouped_labels[i]
-    pdb.set_trace()
-    class_emb = np.average(embeddings[group_indices], axis = 0)
-    class_embeddings.append(class_emb)
+    class_embeddings.append(np.median(embeddings[group_indices], axis = 0))
 
 class_embeddings = np.asarray(class_embeddings)
 #Save class embeddings
 np.save(outdir+'class_emb.npy', class_embeddings)
-
+pdb.set_trace()
 
 def alternative_sim(class_embeddings, emb):
     '''Compute an alternative similarity measure
