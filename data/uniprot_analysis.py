@@ -39,6 +39,16 @@ def read_data(uniprot_fetch):
             uids.append(line[3])
 
 
+def check_order_variation(combos):
+    '''Check that the combos are unique by analyzing the order of domains and possible variations of this
+    '''
+    #Split the combos into parts
+    combo_parts = []
+    unique_combos = [] #Save the unique combos
+    for combo in combos:
+        combo = combo.split(';')
+        if len(combo)>2:
+
 
 def analyze_distributions(df):
     '''analyze the C.A.T.H distributions
@@ -81,6 +91,9 @@ args = parser.parse_args()
 uniprot_fetch = pd.read_csv(args.uniprot_fetch[0],sep='\t',low_memory=False)
 outdir = args.outdir[0]
 
+#Unique domain combos - NOTE! Need to make sure there are not combos of varying order as well
+unique_domain_combos = uniprot_fetch['Cross-reference (Gene3D)'].unique() #53017 without varying order analysis.
+combos = uniprot_fetch['Cross-reference (Gene3D)'].dropna() #No nans
 pdb.set_trace()
 #Read data
 read_data(uniprot_fetch)
