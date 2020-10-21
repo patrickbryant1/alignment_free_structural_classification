@@ -4,6 +4,8 @@
 
 import argparse
 import sys
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../') #Makes it possible to use processing
 import numpy as np
 import pandas as pd
 import time
@@ -15,11 +17,14 @@ from processing import one_hot, group_by_hgroup
 import tensorflow as tf
 from tensorflow.keras import regularizers,optimizers
 import tensorflow.keras as keras
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import model_from_json
 from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, Callback
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import MaxPooling1D,add,Lambda,Dense, Dropout, Activation, Conv1D, BatchNormalization, Flatten, Subtract
 from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 
+import pdb
 
 #Arguments for argparse module:
 parser = argparse.ArgumentParser(description = '''A program that reads a keras model from a .json and a .h5 file''')
@@ -40,7 +45,6 @@ parser.add_argument('--outdir', nargs=1, type= str,
 np.random.seed(0)
 
 ######################FUNCTIONS######################
-
 
 def load_model(json_file, weights):
 
@@ -83,20 +87,24 @@ outdir = args.outdir[0]
 model = load_model(json_file, weights)
 
 #Get embedding layers
-pdb.set_trace()
-emb_layer = Model(inputs=model.input, outputs=model.get_layer('emb1').output)
-
+#emb_layer = Model(inputs=model.input, outputs=model.get_layer('emb1').output)
+inp = model.input                                           # input placeholder
+outputs = [model.layers[-2].output] #the second to last layer is the embedding, the last is the dense layer for classification
+functors = [K.function([inp, K.learning_phase()], [out]) for out in outputs]
+#K.function creates theano/tensorflow tensor functions which is later used to get the output from the symbolic graph given the input.
+#Now K.learning_phase() is required as an input as many Keras layers like Dropout/Batchnomalization depend on it to change behavior during training and test time
+#I use batch BatchNormalization
 batch_size=32
 #Get average embeddings for all entries
 
 embeddings = []
-for i in range(0,len(sequences)-batch_size,batch_size):
-    encoded_seqs = [] #Encoded sequences
+for i in range(0,len(encoded_seqs)-batch_size,batch_size):
+    onehot_seqs = [] #Encoded sequences
     for j in range(i,i+batch_size):
-        encoded_seqs.append(np.eye(21)[sequences[i]])
+        onehot_seqs.append(np.eye(21)[encoded_seqs[i]])
     #Obtain embeddings
-    embeddings.append(np.asarray(emb_layer.predict(np.array(encoded_seqs))))
-
+    embeddings.append(functors[0](np.array(onehot_seqs))[0])
+pdb.set_trace()
 #Convert to array
 embeddings = np.array(embeddings)
 #Compute class labels by averaging the embeddings for each H-group.
