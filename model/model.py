@@ -21,8 +21,7 @@ from tensorflow.keras.layers import MaxPooling1D,add,Lambda,Dense, Dropout, Acti
 from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 #visualization
 from tensorflow.keras.callbacks import TensorBoard
-
-#from lr_finder import LRFinder
+from lr_finder import LRFinder
 
 import pdb
 #Arguments for argparse module:
@@ -133,7 +132,21 @@ input_dim = (600,21)
 num_res_blocks=1
 dilation_rate = 5
 seq_length=600
-#MODEL
+
+#lr opt
+find_lr = True
+#LR schedule
+step_size = 10
+num_cycles = 10
+num_epochs = step_size*2*num_cycles
+num_steps = int(len(grouped_labels)/batch_size)
+max_lr = 0.0015
+min_lr = max_lr/10
+lr_change = (max_lr-min_lr)/step_size  #(step_size*num_steps) #How mauch to change each batch
+lrate = min_lr
+
+#####MODEL#####
+#####Inputs#####
 in_1 = keras.Input(shape = [600,21])
 
 
@@ -170,22 +183,57 @@ flat1 = Flatten()(maxpool1)  #Flatten
 probabilities = Dense(len(grouped_labels), activation='softmax')(flat1)
 
 #Checkpoint
-#filepath=out_dir+"weights-{epoch:02d}-.hdf5"
+#filepath=outdir+"weights-{epoch:02d}-.hdf5"
 #checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='max')
 
 #Model: define inputs and outputs
 model = Model(inputs = in_1, outputs = probabilities)
-opt = optimizers.Adam(clipnorm=1., lr = 0.001) #remove clipnorm and add loss penalty - clipnorm works better
+opt = optimizers.Adam(clipnorm=1., lr = lrate) #remove clipnorm and add loss penalty - clipnorm works better
 model.compile(loss='categorical_crossentropy',
               optimizer=opt,
               metrics = ['accuracy'])
 
+if find_lr == True:
+    lr_finder = LRFinder(model)
+    #Encode all data
+    lr_finder.find(grouped_labels,encoded_seqs, start_lr=0.00001, end_lr=1, batch_size=batch_size, epochs=1)
+    losses = lr_finder.losses
+    lrs = lr_finder.lrs
+    l_l = np.asarray([lrs, losses])
+    np.savetxt(outdir+'lrs_losses.txt', l_l)
+    num_epochs = 0
+
+#LR schedule
+class LRschedule(Callback):
+  '''lr scheduel according to one-cycle policy.
+  '''
+  def __init__(self, interval=1):
+    super(Callback, self).__init__()
+    self.lr_change = lr_change #How mauch to change each batch
+    self.lr = min_lr
+    self.interval = interval
+
+  def on_epoch_end(self, epoch, logs={}):
+    if epoch > 0 and epoch%step_size == 0:
+      self.lr_change = self.lr_change*-1 #Change decrease/increase
+
+    self.lr = self.lr + self.lr_change
+    keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+
+#Lrate
+lrate = LRschedule()
+
+
 #Summary of model
 print(model.summary())
 
+#Callbacks
+callbacks=[lrate, tensorboard]
 #Fit model
 #Should shuffle uid1 and uid2 in X[0] vs X[1]
 model.fit_generator(generate(grouped_labels,encoded_seqs,batch_size),
-            steps_per_epoch=int(len(grouped_labels)/batch_size),
-            epochs=num_epochs
+            steps_per_epoch=num_steps,
+            epochs=num_epochs,
+            callbacks=callbacks
             )
