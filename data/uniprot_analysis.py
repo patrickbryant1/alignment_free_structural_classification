@@ -20,82 +20,56 @@ parser.add_argument('--outdir', nargs=1, type= str,
 
 
 #####FUNCTIONS#####
-def read_data(uniprot_fetch):
-    '''Read the uniprot fetch
-    '''
-
-    entry=[]
-    name=[]
-    length=[]
-    uids=[]
-    with open(uniprot_fetch, 'r') as file:
-        ln=0
-        for line in file:
-            line = line.rstrip()
-            line = line.split('\t')
-            entry.append(line[0])
-            name.append(line[1])
-            length.append(line[2])
-            uids.append(line[3])
-
-
-def check_order_variation(combos):
+def check_order_variation(unique_domain_combos):
     '''Check that the combos are unique by analyzing the order of domains and possible variations of this
+    Domains in a protein with order AB are treated equal as those with order BA,
+    however order ABC is not considered to be equal to order CBA
     '''
     #Split the combos into parts
-    combo_parts = []
-    unique_combos = [] #Save the unique combos
-    for combo in combos:
-        combo = combo.split(';')
-        if len(combo)>2:
-
-
-def analyze_distributions(df):
-    '''analyze the C.A.T.H distributions
-    '''
-    #uid,sequence,Class,Architecture,Topology,H-group
-    for param in ['Class','Architecture','Topology','H-group']:
-        counted = Counter(df[param])
-        groups = np.array([*counted.keys()])
-        print(param,len(groups), 'groups')
-        vals = np.array([*counted.values()])
-        if param == 'H-group':
-            print(len(vals[np.where(vals==1)]), 'out of', len(vals), 'H-groups with only one entry')
-        sns.distplot(vals)
-        plt.title(param)
-        plt.savefig(outdir+param+'_hist.png', format='png', dpi=300)
-        plt.close()
-
-        sort_ind = np.argsort(vals)
-        if len(groups) <10:
-            plt.bar(groups[sort_ind],vals[sort_ind])
+    combos = np.array(unique_domain_combos['Cross-reference (Gene3D)'])
+    unique_combos = {} #Save the unique combos
+    for c in range(len(combos)):
+        combo = combos[c].split(';')[:-1]
+        if len(combo)==2:
+            #Check if the combo or a variation of it is in unique combos
+            found = False #Keep track of if any combo of the current domain set exists in unique_combos
+            for i in range(len(combo)):
+                p1 = ';'.join(combo[i:])
+                p2 = ';'.join(combo[:i])
+                key = p1+p2+';'
+                if key in [*unique_combos.keys()]:
+                    found = True
+            #Check if combo already found
+            if found == True:
+                continue
+            else:
+                unique_combos[combos[c]]=c
         else:
-            plt.bar(np.arange(len(groups)),vals[sort_ind])
-            plt.yscale('log')
+            unique_combos[combos[c]]=c
 
-        plt.xlabel('Group')
-        plt.ylabel('Number of entries')
-        plt.title(param)
-        plt.savefig(outdir+param+'_bar.png', format='png', dpi=300)
-        plt.close()
+    return unique_combos
 
 
-    #Plot seqlens
-    sns.distplot(df['seqlen'])
-    plt.title('Sequence length')
-    plt.savefig(outdir+'seqlen_hist.png', format='png', dpi=300)
-    plt.close()
 
 #####MAIN#####
 args = parser.parse_args()
 uniprot_fetch = pd.read_csv(args.uniprot_fetch[0],sep='\t',low_memory=False)
 outdir = args.outdir[0]
 
+#Look at how many lack domain annotations
+num_lacking_domain = len(uniprot_fetch['Cross-reference (Gene3D)'])-len(uniprot_fetch['Cross-reference (Gene3D)'].dropna()) #No nans
+print('Number of entries lacking domain annotations', num_lacking_domain)
 #Unique domain combos - NOTE! Need to make sure there are not combos of varying order as well
-unique_domain_combos = uniprot_fetch['Cross-reference (Gene3D)'].unique() #53017 without varying order analysis.
-combos = uniprot_fetch['Cross-reference (Gene3D)'].dropna() #No nans
-pdb.set_trace()
-#Read data
-read_data(uniprot_fetch)
-#Analyze
-analyze_distributions(df)
+unique_domain_combos = uniprot_fetch.drop_duplicates(subset=['Cross-reference (Gene3D)'])
+unique_domain_combos = unique_domain_combos.reset_index()
+
+#Get a selection of unique domain combinations, where each combination is represented only once
+sel_unique_domain_combos = check_order_variation(unique_domain_combos)
+print('There are', len(sel_unique_domain_combos.keys()), 'unique domain combinations in the', len(uniprot_fetch), 'sequences.')
+print('Removed', len(unique_domain_combos)-len(sel_unique_domain_combos.keys()), 'by order analysis')
+
+#Select the unique ones from the df
+unique_combo_df = unique_domain_combos.loc[[*sel_unique_domain_combos.values()]]
+unique_combo_df = unique_combo_df.reset_index()
+#Save the df
+unique_combo_df.to_csv(outdir+'unique_domain_combinations.csv')
