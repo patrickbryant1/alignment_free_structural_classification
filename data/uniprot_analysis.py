@@ -61,7 +61,7 @@ num_lacking_domain = len(uniprot_fetch['Cross-reference (Gene3D)'])-len(uniprot_
 print('Number of entries lacking domain annotations', num_lacking_domain)
 #Unique domain combos - NOTE! Need to make sure there are not combos of varying order as well
 unique_domain_combos = uniprot_fetch.drop_duplicates(subset=['Cross-reference (Gene3D)'])
-pdb.set_trace()
+unique_domain_combos = unique_domain_combos.dropna()
 unique_domain_combos = unique_domain_combos.reset_index()
 
 #Get a selection of unique domain combinations, where each combination is represented only once

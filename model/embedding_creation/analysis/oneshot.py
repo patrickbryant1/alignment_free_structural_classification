@@ -142,10 +142,14 @@ def zsl(class_embeddings, embeddings, grouped_labels):
 
     #Investigate num above threshold
     num_above_t = []
+    fpr = []
     for i in range(0,len(embeddings),10):
         if i ==0:
             i=1
         num_above_t.append(np.where(pred_ranks<i)[0].shape[0])
+        #FPR
+        #When top 10 are called, 9 FP are called for every called TP
+        fpr.append(num_above_t[-1]*(i-1))
     pdb.set_trace()
     num_above_t = np.array(num_above_t)
     plt.plot(np.arange(0,len(embeddings),10),100*num_above_t/len(embeddings))
@@ -154,6 +158,7 @@ def zsl(class_embeddings, embeddings, grouped_labels):
     plt.xlabel('Threshold (top n)')
     plt.ylabel('Procent above threhold')
     plt.show()
+
 
     #false_positives = num_above_t- #Num above t that should not be divided by all negative
     top1 = np.where(pred_ranks<1)[0].shape[0]
