@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-SEQDF=../../data/seqdf.csv
-PARAMS=./params/32_10_1_3_40_10.params
+SEQDF=../../data/seqdf_s95.csv
+PARAMS=./params/32_10_1_3_10_10.params
 OUTDIR=../../results/
 
 SINGULARITY=/opt/singularity3/bin/singularity
