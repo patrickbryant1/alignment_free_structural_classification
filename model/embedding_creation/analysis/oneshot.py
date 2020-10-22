@@ -98,52 +98,72 @@ def alternative_sim(class_embeddings, emb):
 def zsl(class_embeddings, embeddings, grouped_labels):
     '''A function that runs ZSL according to provided data
     '''
+    try:
+        pred_ranks = np.load(outdir+'pred_ranks.npy', allow_pickle=True)
+    except:
+        pred_ranks = []
+        pred_min2seqs_ranks = []
+        n_with_one=0
+        for i in range(len(grouped_labels)):
+            group = grouped_labels[i] #Group
+            print(i)
+            if len(group)<2:
+                pred_ranks.append(0)
+                n_with_one+=1
+                continue
+            for j in group:
+                #Compute the cosine similarity between the individual embeddings and all group embeddings
+                #It turns out, the closer the documents are by angle, the higher is the Cosine Similarity
 
-    pred_ranks = []
-    pred_min2seqs_ranks = []
-    n_with_one=0
-    for i in range(len(grouped_labels)):
-        group = grouped_labels[i] #Group
-        print(i)
-        if len(group)<2:
-            pred_ranks.append(0)
-            n_with_one+=1
-            continue
-        for j in group:
-            #Compute the cosine similarity between the individual embeddings and all group embeddings
-            #It turns out, the closer the documents are by angle, the higher is the Cosine Similarity
+                sims = cosine_similarity(np.array([embeddings[j]]),class_embeddings)[0]
 
-            sims = cosine_similarity(np.array([embeddings[j]]),class_embeddings)[0]
+                ranks = np.argsort(sims)
+                #Reverse ranks
+                ranks = ranks[::-1] #Since the cosine sim should be maximized, the ranks are reversed.
 
-            ranks = np.argsort(sims)
-            #Reverse ranks
-            ranks = ranks[::-1] #Since the cosine sim should be maximized, the ranks are reversed.
-
-            pred_ranks.append(np.where(ranks==i)[0][0])
-            pred_min2seqs_ranks.append(np.where(ranks==i)[0][0])
-            #nonj = np.setdiff1d(group,j)
-            #group_ranks = []
-            #Go through all ranks
-            #for k in nonj:
-            #    group_ranks.append(np.where(ranks==k)[0][0])
-            #Save the best rank for the group
-            #pred_ranks.append(min(group_ranks))
-
-
-
-    #Save predicted_ranks
-    pred_ranks = np.asarray(pred_ranks)
+                pred_ranks.append(np.where(ranks==i)[0][0])
+                pred_min2seqs_ranks.append(np.where(ranks==i)[0][0])
+                #nonj = np.setdiff1d(group,j)
+                #group_ranks = []
+                #Go through all ranks
+                #for k in nonj:
+                #    group_ranks.append(np.where(ranks==k)[0][0])
+                #Save the best rank for the group
+                #pred_ranks.append(min(group_ranks))
 
 
-    np.save(outdir+'pred_ranks.npy', pred_ranks)
-    print('Average rank',np.average(pred_min2seqs_ranks))
-    print('There are', n_with_one, 'H-groups with only one sequence')
+        #Save predicted_ranks
+        pred_ranks = np.asarray(pred_ranks)
+
+
+        np.save(outdir+'pred_ranks.npy', pred_ranks)
+        print('Average rank',np.average(pred_min2seqs_ranks))
+        print('There are', n_with_one, 'H-groups with only one sequence')
+
+    #Investigate num above threshold
+    num_above_t = []
+    for i in range(0,len(embeddings),10):
+        if i ==0:
+            i=1
+        num_above_t.append(np.where(pred_ranks<i)[0].shape[0])
+    pdb.set_trace()
+    num_above_t = np.array(num_above_t)
+    plt.plot(np.arange(0,len(embeddings),10),100*num_above_t/len(embeddings))
+    plt.xscale('log')
+    #plt.yscale('log')
+    plt.xlabel('Threshold (top n)')
+    plt.ylabel('Procent above threhold')
+    plt.show()
+
+    #false_positives = num_above_t- #Num above t that should not be divided by all negative
     top1 = np.where(pred_ranks<1)[0].shape[0]
     top10 = np.where(pred_ranks<10)[0].shape[0]
     top100 = np.where(pred_ranks<100)[0].shape[0]
+    top1000 = np.where(pred_ranks<1000)[0].shape[0]
     print('There are', top1, 'sequences ranked top1. Equaling', np.round(100*top1/len(embeddings),2),'%')
     print('There are', top10, 'sequences ranked top10. Equaling', np.round(100*top10/len(embeddings),2),'%')
     print('There are', top100, 'sequences ranked top100. Equaling', np.round(100*top100/len(embeddings),2),'%')
+    print('There are', top1000, 'sequences ranked top100. Equaling', np.round(100*top1000/len(embeddings),2),'%')
     pdb.set_trace()
     return None
 
