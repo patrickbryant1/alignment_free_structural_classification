@@ -219,4 +219,3 @@ except:
 
 #Run zero shot learning
 zsl(class_embeddings, embeddings, grouped_labels)
-pdb.set_trace()
