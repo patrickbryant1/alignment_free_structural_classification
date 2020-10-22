@@ -65,6 +65,26 @@ def load_model(json_file, weights):
 	#model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 	return model
 
+def tsne_emb(embeddings, class_embeddings, sequence_df, outdir):
+    '''Visualize the class embeddings and the individual embeddings. Color them by architecture.
+    '''
+
+    architectures = np.array(sequence_df['Class']) #Architectures
+    u_architectures = sequence_df['Class'].unique() #Unique architectures
+    colors = pl.cm.viridis(np.linspace(0,1,len(u_architectures)))
+    #Perform t-SNE
+    try:
+        x = np.load(outdir+'tsne.npy', allow_pickle=True)
+    except:
+        x = TSNE(n_components=2).fit_transform(embeddings)
+        np.save(outdir+'tsne.npy', x)
+    #Color in each architecture
+    for i in range(len(u_architectures)):
+        arch = u_architectures[i]
+        ind = np.where(architectures==arch)[0]
+        sel = x[ind]
+        plt.scatter(sel[:,0], sel[:,1], color=colors[i], s= 1, alpha = 0.5)
+
 def alternative_sim(class_embeddings, emb):
     '''Compute an alternative similarity measure
     '''
@@ -79,55 +99,37 @@ def zsl(class_embeddings, embeddings, grouped_labels):
     '''A function that runs ZSL according to provided data
     '''
 
-    for group in grouped_labels:
-        for i in group:
+    pred_ranks = []
+    for i in range(len(grouped_labels)):
+        group = grouped_labels[i] #Group
+        for j in group:
             #Compute the cosine similarity between the individual embeddings and all group embeddings
             #It turns out, the closer the documents are by angle, the higher is the Cosine Similarity
-            pdb.set_trace()
-            sims = cosine_similarity(np.array([embeddings[i]]),class_embeddings)[0]
-    #Compute L1 distance to all class_embeddings
-    pred_ranks = []
-    for i in range(0, len(item)):
-        true = targets[i]
-        #diff = np.absolute(class_embeddings-item[i])
-        #dists = np.sum(diff, axis = 1)
-        dists =  alternative_sim(class_embeddings, item[i])
-        ranks = np.argsort(dists)
-        try:
-            rank = np.where(ranks == true)[0][0]
-        except:
-            pdb.set_trace()
 
-        pred_ranks.append(rank)
+            sims = cosine_similarity(np.array([embeddings[j]]),embeddings)[0]
+
+            ranks = np.argsort(sims)
+            #Reverse ranks
+            ranks = ranks[::-1] #Since the cosine sim should be maximized, the ranks are reversed.
+            nonj = np.setdiff1d(group,j)
+            group_ranks = []
+            #Go through all ranks
+            for k in nonj:
+                group_ranks.append(np.where(ranks==k)[0][0])
+            #Save the best rank for the group
+            pred_ranks.append(min(group_ranks))
+
+    pdb.set_trace()
 
     #Save predicted_ranks
     pred_ranks = np.asarray(pred_ranks)
-    np.save(out_dir+type+'_'+name+'_pred_ranks.npy', pred_ranks)
+
+
+    np.save(outdir+'_pred_ranks.npy', fixed_ranks)
+    print('Average rank',np.average(fixed_ranks))
 
     return None
 
-def tsne_emb(embeddings, class_embeddings, sequence_df, outdir):
-    '''Visualize the class embeddings and the individual embeddings. Color them by architecture.
-    '''
-
-    architectures = np.array(sequence_df['Architecture']) #Architectures
-    u_architectures = sequence_df['Architecture'].unique() #Unique architectures
-    colors = pl.cm.viridis(np.linspace(0,1,len(architectures)))
-    #Perform t-SNE
-    try:
-        x = np.load(outdir+'tsne.npy', allow_pickle=True)
-    except:
-        x = TSNE(n_components=2).fit_transform(embeddings)
-        np.save(outdir+'tsne.npy', x)
-    #Color in each architecture
-    for i in range(len(u_architectures)):
-        arch = u_architectures[i]
-        ind = np.where(architectures==arch)[0]
-        sel = x[ind]
-        plt.scatter(sel[:,0], sel[:,1], color=colors[i], s= 0.1)
-
-
-    pdb.set_trace()
 
 
 ######################MAIN######################
@@ -194,7 +196,7 @@ except:
     np.save(outdir+'class_emb.npy', class_embeddings)
 
 #Look at embeddings
-tsne_emb(embeddings, class_embeddings, sequence_df, outdir)
+#tsne_emb(embeddings, class_embeddings, sequence_df, outdir)
 
 #Run zero shot learning
 zsl(class_embeddings, embeddings, grouped_labels)
