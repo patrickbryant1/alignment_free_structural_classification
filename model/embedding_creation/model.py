@@ -128,10 +128,10 @@ input_dim = (600,21)
 net_params = read_net_params(params_file)
 
 #Variable params
-batch_size = int(net_params['batch_size']) #64
-filters = int(net_params['filters']) #20
-num_res_blocks= int(net_params['num_res_blocks']) #1
-dilation_rate = int(net_params['dilation_rate']) #5
+batch_size = 64 #int(net_params['batch_size']) #64
+filters = 30 #int(net_params['filters']) #20
+num_res_blocks= 1 #int(net_params['num_res_blocks']) #1
+dilation_rate = 5 #int(net_params['dilation_rate']) #5
 
 #lr opt
 find_lr = False
@@ -188,7 +188,7 @@ checkpoint = ModelCheckpoint(filepath, verbose=1, save_best_only=False, mode='ma
 
 #Model: define inputs and outputs
 model = Model(inputs = in_1, outputs = probabilities)
-opt = optimizers.Adam(clipnorm=1., lr = lrate) #remove clipnorm and add loss penalty - clipnorm works better
+opt = optimizers.Adam(clipnorm=1., lr = 0.002) #remove clipnorm and add loss penalty - clipnorm works better
 model.compile(loss='categorical_crossentropy',
               optimizer=opt,
               metrics = ['accuracy'])

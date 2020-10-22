@@ -6,7 +6,7 @@ OUTDIR=../../../results/test_net/
 
 #Look at the performance in one-shot learning.
 JSON=../../../results/test_net/model.json
-WEIGHTS=../../../results/test_net/weights-99-.hdf5
+WEIGHTS=../../../results/test_net/weights-200-.hdf5
 SEQDF=../../../data/seqdf_s100.csv
 OUTDIR=../../../results/test_net/
 ./oneshot.py --json_file $JSON --weights $WEIGHTS --sequence_df $SEQDF --outdir $OUTDIR

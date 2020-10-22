@@ -190,10 +190,10 @@ except:
     #K.function creates theano/tensorflow tensor functions which is later used to get the output from the symbolic graph given the input.
     #Now K.learning_phase() is required as an input as many Keras layers like Dropout/Batchnomalization depend on it to change behavior during training and test time
     #I use batch BatchNormalization
-    batch_size=32
+    batch_size=64
     #Get average embeddings for all entries
 
-    embeddings = np.zeros((len(encoded_seqs),5))
+    embeddings = np.zeros((len(encoded_seqs),15))
     for i in range(0,len(encoded_seqs)-batch_size,batch_size):
         onehot_seqs = [] #Encoded sequences
         for j in range(i,i+batch_size):
