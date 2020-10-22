@@ -100,43 +100,63 @@ def zsl(class_embeddings, embeddings, grouped_labels):
     '''
 
     pred_ranks = []
+    pred_min2seqs_ranks = []
+    n_with_one=0
     for i in range(len(grouped_labels)):
         group = grouped_labels[i] #Group
+        print(i)
+        if len(group)<2:
+            pred_ranks.append(0)
+            n_with_one+=1
+            continue
         for j in group:
             #Compute the cosine similarity between the individual embeddings and all group embeddings
             #It turns out, the closer the documents are by angle, the higher is the Cosine Similarity
 
-            sims = cosine_similarity(np.array([embeddings[j]]),embeddings)[0]
+            sims = cosine_similarity(np.array([embeddings[j]]),class_embeddings)[0]
 
             ranks = np.argsort(sims)
             #Reverse ranks
             ranks = ranks[::-1] #Since the cosine sim should be maximized, the ranks are reversed.
-            nonj = np.setdiff1d(group,j)
-            group_ranks = []
-            #Go through all ranks
-            for k in nonj:
-                group_ranks.append(np.where(ranks==k)[0][0])
-            #Save the best rank for the group
-            pred_ranks.append(min(group_ranks))
 
-    pdb.set_trace()
+            pred_ranks.append(np.where(ranks==i)[0][0])
+            pred_min2seqs_ranks.append(np.where(ranks==i)[0][0])
+            #nonj = np.setdiff1d(group,j)
+            #group_ranks = []
+            #Go through all ranks
+            #for k in nonj:
+            #    group_ranks.append(np.where(ranks==k)[0][0])
+            #Save the best rank for the group
+            #pred_ranks.append(min(group_ranks))
+
+
 
     #Save predicted_ranks
     pred_ranks = np.asarray(pred_ranks)
 
 
-    np.save(outdir+'_pred_ranks.npy', fixed_ranks)
-    print('Average rank',np.average(fixed_ranks))
-
+    np.save(outdir+'pred_ranks.npy', pred_ranks)
+    print('Average rank',np.average(pred_min2seqs_ranks))
+    print('There are', n_with_one, 'H-groups with only one sequence')
+    top1 = np.where(pred_ranks<1)[0].shape[0]
+    top10 = np.where(pred_ranks<10)[0].shape[0]
+    top100 = np.where(pred_ranks<100)[0].shape[0]
+    print('There are', top1, 'sequences ranked top1. Equaling', np.round(100*top1/len(embeddings),2),'%')
+    print('There are', top10, 'sequences ranked top10. Equaling', np.round(100*top10/len(embeddings),2),'%')
+    print('There are', top100, 'sequences ranked top100. Equaling', np.round(100*top100/len(embeddings),2),'%')
+    pdb.set_trace()
     return None
 
 
 
 ######################MAIN######################
 args = parser.parse_args()
+
 t1 = time.time()
 sequence_df = pd.read_csv(args.sequence_df[0])
-
+json_file = (args.json_file[0])
+weights = (args.weights[0])
+outdir = args.outdir[0]
 #Assign data and labels
 #Onehot encode sequences
 sequences = np.array(sequence_df['sequence'])
@@ -144,17 +164,16 @@ encoded_seqs = one_hot(sequences)
 
 #Get H-group labels
 try:
-    grouped_labels = np.load(outdir+'grouped_labels.npy', allow_pickle=True)
+    grouped_labels = np.load(outdir+'grouped_labels_s100.npy', allow_pickle=True)
 except:
     hgroup_labels = np.array(sequence_df['H-group'])
     grouped_labels = group_by_hgroup(hgroup_labels)
+    np.save(outdir+'grouped_labels_s100.npy', grouped_labels) #Save
 
 t2 = time.time()
 print('Formatted in', np.round(t2-t1,2),'seconds')
-args = parser.parse_args()
-json_file = (args.json_file[0])
-weights = (args.weights[0])
-outdir = args.outdir[0]
+
+
 
 try:
     class_embeddings=np.load(outdir+'class_emb.npy', allow_pickle=True)
@@ -200,9 +219,4 @@ except:
 
 #Run zero shot learning
 zsl(class_embeddings, embeddings, grouped_labels)
-pdb.set_trace()
-
-
-zsl_test(train_index, 'train', out_dir)
-zsl_test(test_index, 'test', out_dir)
 pdb.set_trace()
