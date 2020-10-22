@@ -24,6 +24,13 @@ from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import MaxPooling1D,add,Lambda,Dense, Dropout, Activation, Conv1D, BatchNormalization, Flatten, Subtract
 from tensorflow.keras.losses import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 
+#Metrics
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.manifold import TSNE
+
+#Vis
+import matplotlib.pyplot as plt
+import matplotlib.pylab as pl
 import pdb
 
 #Arguments for argparse module:
@@ -68,13 +75,16 @@ def alternative_sim(class_embeddings, emb):
     esim = 1/(1+2*diff_norm/(class_emb_norm+emb_norm))
     return esim
 
-def zsl_test(indices, type, out_dir):
+def zsl(class_embeddings, embeddings, grouped_labels):
     '''A function that runs ZSL according to provided data
     '''
-    item = average_emb[indices]
-    targets = y[indices]
-    name = 'average_emb'
 
+    for group in grouped_labels:
+        for i in group:
+            #Compute the cosine similarity between the individual embeddings and all group embeddings
+            #It turns out, the closer the documents are by angle, the higher is the Cosine Similarity
+            pdb.set_trace()
+            sims = cosine_similarity(np.array([embeddings[i]]),class_embeddings)[0]
     #Compute L1 distance to all class_embeddings
     pred_ranks = []
     for i in range(0, len(item)):
@@ -95,6 +105,30 @@ def zsl_test(indices, type, out_dir):
     np.save(out_dir+type+'_'+name+'_pred_ranks.npy', pred_ranks)
 
     return None
+
+def tsne_emb(embeddings, class_embeddings, sequence_df, outdir):
+    '''Visualize the class embeddings and the individual embeddings. Color them by architecture.
+    '''
+
+    architectures = np.array(sequence_df['Architecture']) #Architectures
+    u_architectures = sequence_df['Architecture'].unique() #Unique architectures
+    colors = pl.cm.viridis(np.linspace(0,1,len(architectures)))
+    #Perform t-SNE
+    try:
+        x = np.load(outdir+'tsne.npy', allow_pickle=True)
+    except:
+        x = TSNE(n_components=2).fit_transform(embeddings)
+        np.save(outdir+'tsne.npy', x)
+    #Color in each architecture
+    for i in range(len(u_architectures)):
+        arch = u_architectures[i]
+        ind = np.where(architectures==arch)[0]
+        sel = x[ind]
+        plt.scatter(sel[:,0], sel[:,1], color=colors[i], s= 0.1)
+
+
+    pdb.set_trace()
+
 
 ######################MAIN######################
 args = parser.parse_args()
@@ -122,7 +156,7 @@ outdir = args.outdir[0]
 
 try:
     class_embeddings=np.load(outdir+'class_emb.npy', allow_pickle=True)
-
+    embeddings=np.load(outdir+'emb.npy', allow_pickle=True)
 except:
     #Load and run model
     model = load_model(json_file, weights)
@@ -154,10 +188,16 @@ except:
         class_embeddings.append(np.median(embeddings[group_indices], axis = 0))
 
     class_embeddings = np.asarray(class_embeddings)
+    #Save embeddings
+    np.save(outdir+'emb.npy', embeddings)
     #Save class embeddings
     np.save(outdir+'class_emb.npy', class_embeddings)
 
+#Look at embeddings
+tsne_emb(embeddings, class_embeddings, sequence_df, outdir)
+
 #Run zero shot learning
+zsl(class_embeddings, embeddings, grouped_labels)
 pdb.set_trace()
 
 
