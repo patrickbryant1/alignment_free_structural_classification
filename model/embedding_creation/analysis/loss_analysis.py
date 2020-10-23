@@ -21,6 +21,7 @@ def plot_losses(losses):
     '''
     for name in losses:
         name_losses = np.load(name, allow_pickle=True)
+        pdb.set_trace()
         plt.plot(np.arange(len(name_losses)),name_losses) #Plot losses
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
@@ -34,5 +35,10 @@ outdir = args.outdir[0]
 
 #Get all losses
 losses = glob.glob(indir+'*/losses.npy')
-pdb.set_trace()
+all_losses = []
+for name in losses:
+	all_losses.append(np.load(name, allow_pickle=True))
+all_losses = np.array(all_losses)
+np.save(outdir+'all_losses.npy',all_losses)
+pdb.set_trace()	
 plot_losses(losses)
