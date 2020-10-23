@@ -35,10 +35,13 @@ outdir = args.outdir[0]
 
 #Get all losses
 losses = glob.glob(indir+'*/losses.npy')
+names = []
 all_losses = []
 for name in losses:
+	names.append(name.split('/')[-2])
 	all_losses.append(np.load(name, allow_pickle=True))
 all_losses = np.array(all_losses)
+np.save(outdir+'names.npy',np.array(names))
 np.save(outdir+'all_losses.npy',all_losses)
 pdb.set_trace()	
 plot_losses(losses)
