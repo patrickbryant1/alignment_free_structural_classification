@@ -5,6 +5,7 @@
 import argparse
 import sys
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import glob
@@ -36,18 +37,18 @@ def plot_losses(all_losses, all_names):
         min_loss.append(min(all_losses[i]))
         #Get params
         name = all_names[i].split('_')
-        batch_size.append(name[0])
-        filters.append(name[1])
-        num_res_blocks.append(name[2])
-        dilation_rate.append(name[3])
-        step_size.append(name[4])
-        num_cycles.append(name[5])
+        batch_size.append(int(name[0]))
+        filters.append(int(name[1]))
+        num_res_blocks.append(int(name[2]))
+        dilation_rate.append(int(name[3]))
+        step_size.append(int(name[4]))
+        num_cycles.append(int(name[5]))
 
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     #Min loss
     min_combo = np.where(min_loss ==min(min_loss))[0][0]
-    plt.text(400,min_loss[min_combo],all_names[min_combo])
+    plt.text(400,min_loss[min_combo],all_names[min_combo]+'\nloss:'+str(np.round(min_loss[min_combo],1)))
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     plt.tight_layout()
@@ -65,6 +66,20 @@ def plot_losses(all_losses, all_names):
     plt.savefig(outdir+'loss_distr.png', format='png', dpi=300)
 
     #Analyze the relationship btw the parameters and the loss
+    loss_df = pd.DataFrame()
+    loss_df['batch_size']=batch_size
+    loss_df['filter_size']=filters
+    loss_df['res_blocks']=num_res_blocks
+    loss_df['dilation_rate']=dilation_rate
+    loss_df['step_size']=step_size
+    loss_df['num_cycles']=num_cycles
+    loss_df['min_loss']=min_loss
+    #Plot
+    fig,ax = plt.subplots(figsize=(18/2.54, 9/2.54))
+    sns.pairplot(loss_df,x_vars=['batch_size', 'filter_size','res_blocks','dilation_rate','step_size','num_cycles'],y_vars=['min_loss'])
+    plt.tight_layout()
+    plt.savefig(outdir+'pair.png', format='png', dpi=300)
+
     pdb.set_trace()
 ######################MAIN######################
 #Plt
