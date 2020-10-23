@@ -6,6 +6,7 @@ import argparse
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import glob
 import pdb
 #Arguments for argparse module:
@@ -16,29 +17,35 @@ parser.add_argument('--outdir', nargs=1, type= str, default=sys.stdin, help = 'P
 
 
 #####FUNCTIONS#####
-def plot_losses(losses):
-    '''Plot the lrs and losses
+def plot_losses(all_losses):
+    '''Plot the epochs and losses
     '''
-    for name in losses:
-        name_losses = np.load(name, allow_pickle=True)
-        pdb.set_trace()
-        plt.plot(np.arange(len(name_losses)),name_losses) #Plot losses
+    min_loss = []
+    for loss in all_losses:
+        plt.plot(np.arange(len(loss)),loss) #Plot losses
+        min_loss.append(min(loss))
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.tight_layout()
     plt.savefig(outdir+'loss_vis.png', format='png', dpi=300)
+    
+    #Plot loss distribution
 
+    pdb.set_trace()
 ######################MAIN######################
 args = parser.parse_args()
 indir = args.indir[0]
 outdir = args.outdir[0]
 
 #Get all losses
-losses = glob.glob(indir+'*/losses.npy')
-all_losses = []
-for name in losses:
-	all_losses.append(np.load(name, allow_pickle=True))
-all_losses = np.array(all_losses)
-np.save(outdir+'all_losses.npy',all_losses)
-pdb.set_trace()	
-plot_losses(losses)
+try:
+    all_losses = np.load(outdir+'all_losses.npy', allow_pickle=True)
+except:
+    losses = glob.glob(indir+'*/losses.npy')
+    all_losses = []
+    for name in losses:
+        all_losses.append(np.load(name, allow_pickle=True))
+    all_losses = np.array(all_losses)
+    np.save(outdir+'all_losses.npy',all_losses)
+#Plot
+plot_losses(all_losses)
