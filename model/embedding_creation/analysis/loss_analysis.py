@@ -17,7 +17,7 @@ parser.add_argument('--outdir', nargs=1, type= str, default=sys.stdin, help = 'P
 
 
 #####FUNCTIONS#####
-def plot_losses(all_losses):
+def plot_losses(all_losses, all_names):
     '''Plot the epochs and losses
     '''
     min_loss = []
@@ -40,12 +40,16 @@ outdir = args.outdir[0]
 #Get all losses
 try:
     all_losses = np.load(outdir+'all_losses.npy', allow_pickle=True)
+    all_losses = np.load(outdir+'names.npy', allow_pickle=True)
 except:
     losses = glob.glob(indir+'*/losses.npy')
+    names=[]
     all_losses = []
     for name in losses:
+        names.append(name.split('/')[-2])
         all_losses.append(np.load(name, allow_pickle=True))
     all_losses = np.array(all_losses)
+    np.save(outdir+'names.npy',np.array(names))
     np.save(outdir+'all_losses.npy',all_losses)
 #Plot
-plot_losses(all_losses)
+plot_losses(all_losses, all_names)
