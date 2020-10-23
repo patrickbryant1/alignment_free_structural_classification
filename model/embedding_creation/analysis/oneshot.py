@@ -143,21 +143,23 @@ def zsl(class_embeddings, embeddings, grouped_labels):
     #Investigate num above threshold
     num_above_t = []
     fpr = []
-    for i in range(0,len(embeddings),10):
+    for i in range(0,len(class_embeddings),10):
         if i ==0:
             i=1
         num_above_t.append(np.where(pred_ranks<i)[0].shape[0])
         #FPR
         #When top 10 are called, 9 FP are called for every called TP
-        fpr.append(num_above_t[-1]*(i-1))
-    pdb.set_trace()
+        fpr.append((i-1)/(i-1+len(class_embeddings)-i)) #The fpr will be the threshold -1 divided by the number of classes
+                                                #e.g. on top 10, 9 are FP out of all the negatives = FP+TN = 9 + num_classes-t
+                                                #This means the FPR will be 10-1/(10-1+num_classes-10)=9/(num_classes-1) (only one class is positive from the beginning)
+
     num_above_t = np.array(num_above_t)
-    plt.plot(np.arange(0,len(embeddings),10),100*num_above_t/len(embeddings))
-    plt.xscale('log')
+    plt.plot(100*np.array(fpr),100*num_above_t/len(embeddings))
+    #plt.xscale('log')
     #plt.yscale('log')
-    plt.xlabel('Threshold (top n)')
-    plt.ylabel('Procent above threhold')
-    plt.show()
+    plt.xlabel('FPR')
+    plt.ylabel('TPR')
+    plt.savefig(outdir+'topn.png', format='png', dpi=300)
 
 
     #false_positives = num_above_t- #Num above t that should not be divided by all negative
@@ -168,7 +170,7 @@ def zsl(class_embeddings, embeddings, grouped_labels):
     print('There are', top1, 'sequences ranked top1. Equaling', np.round(100*top1/len(embeddings),2),'%')
     print('There are', top10, 'sequences ranked top10. Equaling', np.round(100*top10/len(embeddings),2),'%')
     print('There are', top100, 'sequences ranked top100. Equaling', np.round(100*top100/len(embeddings),2),'%')
-    print('There are', top1000, 'sequences ranked top100. Equaling', np.round(100*top1000/len(embeddings),2),'%')
+    print('There are', top1000, 'sequences ranked top1000. Equaling', np.round(100*top1000/len(embeddings),2),'%')
     pdb.set_trace()
     return None
 
@@ -218,7 +220,7 @@ except:
     batch_size=64
     #Get average embeddings for all entries
 
-    embeddings = np.zeros((len(encoded_seqs),15))
+    embeddings = np.zeros((len(encoded_seqs),10))
     for i in range(0,len(encoded_seqs)-batch_size,batch_size):
         onehot_seqs = [] #Encoded sequences
         for j in range(i,i+batch_size):
